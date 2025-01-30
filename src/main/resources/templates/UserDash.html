@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-5">
+    <h2>Welcome, <span id="username"></span>! your address is <span id="address">  </span></h2>
+    <p>We are glad to have you here.</p>
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Dish</th>
+            <th>Price</th>
+        </tr>
+        </thead>
+        <tbody id="productList">
+        <!-- Product rows will be inserted here by JavaScript -->
+        </tbody>
+    </table>
+    <form action="/auth/logout" method="post">
+        <button type="submit" class="btn btn-danger">Logout</button>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', fetchProducts);
+    // Fetch the session data from the backend
+    fetch('/auth/session')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Failed to fetch session data");
+            }
+            return response.json(); // Parse response as JSON
+        })
+        .then(sessionData => {
+            // Extract username and address
+            const { username, address } = sessionData;
+
+            // Update the UI with username and address
+            document.getElementById('username').innerText = username;
+            document.getElementById('address').innerText = address;
+        })
+        .catch(error => console.error('Error fetching session data:', error));
+
+
+    function fetchProducts() {
+        fetch('/menus') // Call the backend endpoint
+            .then(response => {
+                if (response.status === 401) {
+                    alert("You must log in to view products.");
+                    window.location.href = "/login"; // Redirect to login if unauthorized
+                    return;
+                }
+                return response.json();
+            })
+            .then(menus => {
+                const productList = document.getElementById('productList');
+                productList.innerHTML = ''; // Clear the table before rendering
+
+                menus.forEach(menu => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                    <td>${menu.name}</td>
+                    <td>${menu.price}</td>
+                                        <td>
+                        <button class="btn btn-success" onclick="placeOrder(${menu.id})">Place order</button>
+                    </td>
+                `;
+                    productList.appendChild(row);
+                });
+            })
+            .catch(error => console.error("Error fetching products:", error));
+    }
+
+    function placeOrder(menuId) {
+
+        const username = document.getElementById('username').innerText;
+
+        if (!username) {
+            alert("You must log in to place an order.");
+            window.location.href = "/login";
+            return;
+        }
+
+        // Fetch product details
+        fetch(`/menus/${menuId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Failed to fetch product details.");
+                }
+                return response.json();
+            })
+            .then(menu => {
+                // Prepare order data
+                const orderData = {
+                    customer: username,
+                    resturent: menu.rst, // You can replace this with a dynamic value
+                    dish: menu.name,
+                    address: document.getElementById('address').innerText, // User's address from session
+                };
+
+                // Post the order to the backend
+                return fetch('/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(orderData),
+                });
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert("Order placed successfully!");
+                } else {
+                    alert("Failed to place order. Please try again.");
+                }
+            })
+            .catch(error => console.error("Error placing order:", error));
+    }
+
+
+</script>
+</body>
+</html>
